@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "ChatJump",
+  "version": "0.1",
+  "description": "Jump to any previous question in ChatGPT with one click.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["https://chat.openai.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://chat.openai.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "sidebar.html"
+  }
+}
