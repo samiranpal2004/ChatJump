@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>ChatJump</title>
+  <style>
+    body{font-family: Arial, sans-serif; margin:8px; width:320px;}
+    #search{width:100%; padding:6px; margin-bottom:8px; box-sizing:border-box;}
+    #list{max-height:60vh; overflow:auto; padding:0; margin:0; list-style:none;}
+    .item{display:block; text-align:left; padding:8px; border-bottom:1px solid #eee; cursor:pointer; background:#fff;}
+    .item:hover{background:#fafafa;}
+    .small{font-size:12px;color:#666;}
+  </style>
+</head>
+<body>
+  <input id="search" placeholder="Filter questions..." />
+  <div id="status" class="small">Waiting for messages...</div>
+  <ul id="list"></ul>
+
+  <script>
+    
+    const list = document.getElementById('list');
+    const status = document.getElementById('status');
+    const search = document.getElementById('search');
+
+    function render(items){
+      list.innerHTML = '';
+      if(!items || items.length===0){ status.textContent = 'No questions indexed yet.'; return; }
+      status.textContent = `${items.length} question(s)`;
+      for(const it of items){
+        const li = document.createElement('li');
+        li.className = 'item';
+        li.textContent = it.text.length>120 ? it.text.slice(0,120)+'…' : it.text;
+        li.dataset.id = it.id;
+        li.onclick = () => {
+         
+          window.dispatchEvent(new CustomEvent('chatjump-goto', {detail: {id: it.id}}));
+        };
+        list.appendChild(li);
+      }
+    }
+
+    chrome.storage.local.get(['chatjump_index'], res=>{
+      render(res.chatjump_index || []);
+    });
+
+   
+    chrome.storage.onChanged.addListener((changes, area)=>{
+      if(area==='local' && changes.chatjump_index){
+        render(changes.chatjump_index.newValue || []);
+      }
+    });
+
+
+    search.addEventListener('input', () => {
+      chrome.storage.local.get(['chatjump_index'], res=>{
+        const arr = res.chatjump_index || [];
+        const q = search.value.toLowerCase();
+        render(arr.filter(i => i.text.toLowerCase().includes(q)));
+      });
+    });
+
+  </script>
+</body>
+</html>
