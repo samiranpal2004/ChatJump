@@ -1,65 +1,198 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8" />
-  <title>ChatJump</title>
-  <style>
-    body{font-family: Arial, sans-serif; margin:8px; width:320px;}
-    #search{width:100%; padding:6px; margin-bottom:8px; box-sizing:border-box;}
-    #list{max-height:60vh; overflow:auto; padding:0; margin:0; list-style:none;}
-    .item{display:block; text-align:left; padding:8px; border-bottom:1px solid #eee; cursor:pointer; background:#fff;}
-    .item:hover{background:#fafafa;}
-    .small{font-size:12px;color:#666;}
-  </style>
-</head>
-<body>
-  <input id="search" placeholder="Filter questions..." />
-  <div id="status" class="small">Waiting for messages...</div>
-  <ul id="list"></ul>
-
-  <script>
-    
-    const list = document.getElementById('list');
-    const status = document.getElementById('status');
-    const search = document.getElementById('search');
-
-    function render(items){
-      list.innerHTML = '';
-      if(!items || items.length===0){ status.textContent = 'No questions indexed yet.'; return; }
-      status.textContent = `${items.length} question(s)`;
-      for(const it of items){
-        const li = document.createElement('li');
-        li.className = 'item';
-        li.textContent = it.text.length>120 ? it.text.slice(0,120)+'…' : it.text;
-        li.dataset.id = it.id;
-        li.onclick = () => {
-         
-          window.dispatchEvent(new CustomEvent('chatjump-goto', {detail: {id: it.id}}));
-        };
-        list.appendChild(li);
+  <head>
+    <meta charset="utf-8" />
+    <title>ChatJump</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/remixicon@4.0.0/fonts/remixicon.css"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-    }
 
-    chrome.storage.local.get(['chatjump_index'], res=>{
-      render(res.chatjump_index || []);
-    });
-
-   
-    chrome.storage.onChanged.addListener((changes, area)=>{
-      if(area==='local' && changes.chatjump_index){
-        render(changes.chatjump_index.newValue || []);
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        width: 380px;
+        min-height: 400px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #2d3748;
       }
-    });
 
+      .container {
+        padding: 20px;
+      }
 
-    search.addEventListener('input', () => {
-      chrome.storage.local.get(['chatjump_index'], res=>{
-        const arr = res.chatjump_index || [];
-        const q = search.value.toLowerCase();
-        render(arr.filter(i => i.text.toLowerCase().includes(q)));
-      });
-    });
+      .header {
+        text-align: center;
+        color: white;
+        margin-bottom: 20px;
+      }
 
-  </script>
-</body>
+      .header h1 {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 5px;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .header p {
+        font-size: 12px;
+        opacity: 0.9;
+      }
+
+      #search {
+        width: 100%;
+        padding: 12px 16px;
+        border: none;
+        border-radius: 12px;
+        font-size: 14px;
+        background: white;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        margin-bottom: 16px;
+      }
+
+      #search:focus {
+        outline: none;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+      }
+
+      #search::placeholder {
+        color: #a0aec0;
+      }
+
+      #status {
+        font-size: 12px;
+        color: white;
+        text-align: center;
+        margin-bottom: 12px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+      }
+
+      #list {
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+
+      #list::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      #list::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+      }
+
+      #list::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 10px;
+      }
+
+      #list::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .item {
+        display: block;
+        text-align: left;
+        padding: 14px 16px;
+        margin-bottom: 8px;
+        border-radius: 10px;
+        cursor: pointer;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #2d3748;
+        border-left: 4px solid #9f7aea;
+      }
+
+      .item:hover {
+        background: #f7fafc;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        transform: translateX(4px);
+        border-left-color: #805ad5;
+      }
+
+      .item:active {
+        transform: translateX(4px) scale(0.98);
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: white;
+      }
+
+      .empty-state svg {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 16px;
+        opacity: 0.7;
+      }
+
+      .empty-state p {
+        font-size: 14px;
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 5px;
+          "
+        >
+          <img
+            src="icon48.png"
+            alt="ChatJump"
+            style="width: 32px; height: 32px; border-radius: 50%"
+          />
+          <h1 style="margin: 0">ChatJump</h1>
+        </div>
+        <p>Jump to any question instantly</p>
+      </div>
+
+      <div style="position: relative">
+        <i
+          class="ri-menu-search-line"
+          style="
+            position: absolute;
+            left: 12px;
+            top: 35%;
+            transform: translateY(-50%);
+            color: #a0aec0;
+            font-size: 16px;
+            pointer-events: none;
+          "
+        ></i>
+        <input
+          id="search"
+          placeholder="Search questions..."
+          style="padding-left: 36px"
+        />
+      </div>
+      <div id="status">Loading...</div>
+      <ul id="list"></ul>
+    </div>
+    <script src="sidebar.js"></script>
+  </body>
 </html>
