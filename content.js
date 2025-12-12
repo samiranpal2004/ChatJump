@@ -18,11 +18,18 @@ async function validateLicense() {
   const licenseKey = localStorage.getItem("chatjump_license_key");
 
   if (!licenseKey) {
+    console.log(
+      "[ChatJump][content] No license in localStorage; requesting activation"
+    );
     showActivationRequired();
     return false;
   }
 
   try {
+    console.log(
+      "[ChatJump][content] Validating license against:",
+      LICENSE_API_URL
+    );
     const response = await fetch(LICENSE_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -36,13 +43,21 @@ async function validateLicense() {
     const result = await response.json();
 
     if (result.valid) {
+      console.log(
+        "[ChatJump][content] License valid; proceeding to init observer"
+      );
+      // Inform background to clear badge
+      try {
+        chrome.runtime.sendMessage({ type: "chatjump-validated" });
+      } catch (e) {}
       return true;
     } else {
+      console.warn("[ChatJump][content] License invalid:", result.error);
       showActivationRequired(result.error);
       return false;
     }
   } catch (error) {
-    console.error("License validation error:", error);
+    console.error("[ChatJump][content] License validation error:", error);
     return false; // Fail closed - require activation on error
   }
 }
@@ -50,10 +65,30 @@ async function validateLicense() {
 // Show activation required message
 function showActivationRequired(message = "License activation required") {
   // Send message to sidebar to show activation UI
-  chrome.runtime.sendMessage({
-    type: "chatjump-activation-required",
-    message: message,
-  });
+  try {
+    chrome.runtime.sendMessage(
+      {
+        type: "chatjump-activation-required",
+        message: message,
+      },
+      () => {
+        // Ignore if no receiver is present (popup closed)
+        if (chrome.runtime?.lastError) {
+          console.debug(
+            "[ChatJump][content] No sidebar listener (popup closed)"
+          );
+        }
+      }
+    );
+    console.log(
+      "[ChatJump][content] Sent activation-required message to sidebar/background"
+    );
+  } catch (e) {
+    console.error(
+      "[ChatJump][content] Error sending activation-required message:",
+      e
+    );
+  }
 }
 
 function getConversationId() {
@@ -197,11 +232,15 @@ const readyCheck = setInterval(() => {
     clearInterval(readyCheck);
 
     // Validate license before initializing
+    console.log("[ChatJump][content] DOM ready; starting license validation");
     validateLicense().then((isValid) => {
       if (isValid) {
+        console.log("[ChatJump][content] Initializing observer");
         initObserver();
       } else {
-        console.log("ChatJump: Activation required");
+        console.warn(
+          "[ChatJump][content] Activation required; waiting for user action in popup"
+        );
       }
     });
   }
