@@ -1,3 +1,61 @@
+// License Validation
+const LICENSE_API_URL =
+  "https://chatjump.netlify.app/.netlify/functions/validate-license";
+
+// Generate a unique device ID
+function getDeviceId() {
+  let deviceId = localStorage.getItem("chatjump_device_id");
+  if (!deviceId) {
+    deviceId =
+      "device_" + Math.random().toString(36).substring(2, 15) + Date.now();
+    localStorage.setItem("chatjump_device_id", deviceId);
+  }
+  return deviceId;
+}
+
+// Check if license is valid
+async function validateLicense() {
+  const licenseKey = localStorage.getItem("chatjump_license_key");
+
+  if (!licenseKey) {
+    showActivationRequired();
+    return false;
+  }
+
+  try {
+    const response = await fetch(LICENSE_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        licenseKey: licenseKey,
+        deviceId: getDeviceId(),
+        action: "validate",
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.valid) {
+      return true;
+    } else {
+      showActivationRequired(result.error);
+      return false;
+    }
+  } catch (error) {
+    console.error("License validation error:", error);
+    return false; // Fail closed - require activation on error
+  }
+}
+
+// Show activation required message
+function showActivationRequired(message = "License activation required") {
+  // Send message to sidebar to show activation UI
+  chrome.runtime.sendMessage({
+    type: "chatjump-activation-required",
+    message: message,
+  });
+}
+
 function getConversationId() {
   const match = window.location.pathname.match(/\/c\/([^/]+)/);
   return match ? match[1] : "default";
@@ -137,6 +195,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 const readyCheck = setInterval(() => {
   if (document.readyState === "complete" || document.querySelector("article")) {
     clearInterval(readyCheck);
-    initObserver();
+
+    // Validate license before initializing
+    validateLicense().then((isValid) => {
+      if (isValid) {
+        initObserver();
+      } else {
+        console.log("ChatJump: Activation required");
+      }
+    });
   }
 }, 300);

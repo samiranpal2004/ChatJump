@@ -1,8 +1,105 @@
 const list = document.getElementById("list");
 const status = document.getElementById("status");
 const search = document.getElementById("search");
+const activationModal = document.getElementById("activationModal");
+const licenseKeyInput = document.getElementById("licenseKeyInput");
+const activateButton = document.getElementById("activateButton");
+const activationError = document.getElementById("activationError");
+
+const LICENSE_API_URL =
+  "https://chatjump.netlify.app/.netlify/functions/validate-license";
 
 let currentData = [];
+
+// License management
+function getDeviceId() {
+  let deviceId = localStorage.getItem("chatjump_device_id");
+  if (!deviceId) {
+    deviceId =
+      "device_" + Math.random().toString(36).substring(2, 15) + Date.now();
+    localStorage.setItem("chatjump_device_id", deviceId);
+  }
+  return deviceId;
+}
+
+function showActivationModal(message = "") {
+  activationModal.classList.add("show");
+  if (message) {
+    activationError.textContent = message;
+    activationError.classList.add("show");
+  }
+}
+
+function hideActivationModal() {
+  activationModal.classList.remove("show");
+  activationError.classList.remove("show");
+}
+
+// Format license key input
+licenseKeyInput.addEventListener("input", (e) => {
+  let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  let formatted = value.match(/.{1,4}/g)?.join("-") || value;
+  e.target.value = formatted;
+});
+
+// Activate license
+activateButton.addEventListener("click", async () => {
+  const licenseKey = licenseKeyInput.value.replace(/-/g, "");
+
+  if (licenseKey.length < 16) {
+    activationError.textContent = "Please enter a valid license key";
+    activationError.classList.add("show");
+    return;
+  }
+
+  activateButton.disabled = true;
+  activateButton.textContent = "Activating...";
+  activationError.classList.remove("show");
+
+  try {
+    const response = await fetch(LICENSE_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        licenseKey: licenseKeyInput.value,
+        deviceId: getDeviceId(),
+        action: "activate",
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.valid) {
+      localStorage.setItem("chatjump_license_key", licenseKeyInput.value);
+      hideActivationModal();
+      licenseKeyInput.value = "";
+      loadCurrentConversation();
+
+      // Reload content script
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          chrome.tabs.reload(tabs[0].id);
+        }
+      });
+    } else {
+      activationError.textContent = result.error || "Activation failed";
+      activationError.classList.add("show");
+    }
+  } catch (error) {
+    activationError.textContent = "Network error. Please try again.";
+    activationError.classList.add("show");
+  } finally {
+    activateButton.disabled = false;
+    activateButton.textContent = "Activate License";
+  }
+});
+
+// Listen for activation required messages from content script
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg && msg.type === "chatjump-activation-required") {
+    showActivationModal(msg.message);
+  }
+});
 
 function render(items) {
   list.innerHTML = "";
